@@ -1,0 +1,71 @@
+/* ==========================================================================
+   Global CSS Reset & Variables
+   HemoPulse Emergency Donor Center & Registry
+   ========================================================================== */
+
+:root {
+  --primary-red: #dc2626;
+  --primary-red-hover: #b91c1c;
+  --primary-red-light: #fef2f2;
+  --primary-red-border: #fca5a5;
+
+  --accent-blue: #2563eb;
+  --accent-blue-hover: #1d4ed8;
+
+  --status-available: #16a34a;
+  --status-available-bg: #f0fdf4;
+  --status-available-border: #86efac;
+
+  --status-unavailable: #64748b;
+  --status-unavailable-bg: #f1f5f9;
+  --status-unavailable-border: #cbd5e1;
+
+  --urgency-critical: #991b1b;
+  --urgency-critical-bg: #fee2e2;
+
+  --bg-page: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-card-alt: #f1f5f9;
+
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --text-light: #94a3b8;
+
+  --border-color: #e2e8f0;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bg-page);
+  color: var(--text-main);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition: all 0.2s ease-in-out;
+}
+
+input, select {
+  font-family: inherit;
+  outline: none;
+}
