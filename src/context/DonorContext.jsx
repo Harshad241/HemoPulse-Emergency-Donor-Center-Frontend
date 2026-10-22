@@ -160,7 +160,24 @@ export const DonorProvider = ({ children }) => {
           setActiveDonor(normalized[0]);
         }
         setBackendUrl(cleanUrl);
-        showToast(`Connected to backend! Loaded ${normalized.length} donors live.`, 'success');
+
+        // Also fetch emergency hospital requests from backend
+        try {
+          const reqRes = await fetch(`${cleanUrl}/api/emergency-requests`, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' }
+          });
+          if (reqRes.ok) {
+            const reqData = await reqRes.json();
+            if (Array.isArray(reqData) && reqData.length > 0) {
+              setEmergencyRequests(reqData);
+            }
+          }
+        } catch (e) {
+          console.warn('Could not sync emergency requests from backend:', e);
+        }
+
+        showToast(`Connected to backend! Loaded ${normalized.length} donors & emergency needs live.`, 'success');
         return true;
       }
       return false;
@@ -327,8 +344,8 @@ export const DonorProvider = ({ children }) => {
     }
   };
 
-  // Add New Emergency Hospital Requirement
-  const addEmergencyRequest = (req) => {
+  // Add New Emergency Hospital Requirement (Local + Backend sync)
+  const addEmergencyRequest = async (req) => {
     const newReq = {
       id: `EMERG-${String(emergencyRequests.length + 1).padStart(3, '0')}`,
       timeAgo: 'Just now',
@@ -336,12 +353,51 @@ export const DonorProvider = ({ children }) => {
     };
     setEmergencyRequests((prev) => [newReq, ...prev]);
     showToast(`New emergency requirement for ${newReq.bloodGroup} at ${newReq.hospital} published!`, 'warning');
+
+    if (backendUrl) {
+      try {
+        const res = await fetch(`${backendUrl}/api/emergency-requests`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bloodGroup: newReq.bloodGroup,
+            hospital: newReq.hospital,
+            urgency: newReq.urgency,
+            unitsNeeded: newReq.unitsNeeded,
+            department: newReq.department,
+            timeAgo: newReq.timeAgo
+          })
+        });
+        if (res.ok) {
+          const savedReq = await res.json();
+          setEmergencyRequests((prev) =>
+            prev.map((r) => (r.id === newReq.id ? { ...r, ...savedReq, rawId: savedReq.id } : r))
+          );
+        }
+      } catch (e) {
+        console.warn('Failed to sync emergency request to backend:', e);
+      }
+    }
   };
 
-  // Delete Emergency Request
-  const deleteEmergencyRequest = (reqId) => {
+  // Delete Emergency Request (Local + Backend sync)
+  const deleteEmergencyRequest = async (reqId) => {
+    const target = emergencyRequests.find((r) => r.id === reqId);
     setEmergencyRequests((prev) => prev.filter((r) => r.id !== reqId));
     showToast('Emergency request resolved and archived.', 'info');
+
+    if (backendUrl && target) {
+      try {
+        const numericId = target.rawId || target.id || String(reqId).replace(/\D/g, '');
+        if (numericId) {
+          await fetch(`${backendUrl}/api/emergency-requests/${numericId}`, {
+            method: 'DELETE'
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to delete emergency request from backend:', e);
+      }
+    }
   };
 
   // Reset all to default demo data
