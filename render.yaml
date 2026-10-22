@@ -1,0 +1,13 @@
+services:
+  - type: static
+    name: hemopulse-donor-frontend
+    env: static
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: npm install && npm run build
+    publishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
