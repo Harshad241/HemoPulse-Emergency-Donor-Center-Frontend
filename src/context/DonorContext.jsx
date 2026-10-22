@@ -1,10 +1,10 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { initialDonors, initialEmergencyRequirements, user } from '../data/mockData';
 
 // 1. Create the unified Donor Context
 const DonorContext = createContext();
 
-// Helper to normalize donor object so both Exp 3 and Exp 4 property formats work seamlessly
+// Helper to normalize donor object so both Exp 3, Exp 4, and Spring Boot backend formats work seamlessly
 export const normalizeDonor = (donor) => {
   const isAvailable =
     donor.availability === true ||
@@ -13,21 +13,33 @@ export const normalizeDonor = (donor) => {
 
   return {
     ...donor,
+    id: donor.id ? (String(donor.id).startsWith('DONOR-') ? donor.id : `DONOR-${String(donor.id).padStart(3, '0')}`) : `DONOR-${Math.floor(Math.random() * 900 + 100)}`,
+    rawId: donor.id,
     fullName: donor.fullName || donor.name || 'Anonymous Donor',
-    name: donor.name || donor.fullName || 'Anonymous Donor',
+    name: donor.fullName || donor.name || 'Anonymous Donor',
+    age: donor.age ? Number(donor.age) : 25,
+    bloodGroup: donor.bloodGroup || 'O+',
+    city: donor.city || 'Mumbai',
+    phone: donor.phoneNumber || donor.phone || '9876543210',
+    phoneNumber: donor.phoneNumber || donor.phone || '9876543210',
+    email: donor.email || `${(donor.fullName || donor.name || 'donor').toLowerCase().replace(/\s+/g, '.')}@example.com`,
     availability: isAvailable,
     availabilityStatus: isAvailable ? 'Available' : 'Currently Unavailable',
     donations: donor.donations !== undefined ? donor.donations : 1,
     rating: donor.rating !== undefined ? donor.rating : 5.0,
     lastDonationDate: donor.lastDonationDate || donor.lastDonation || 'First-time Donor',
-    lastDonation: donor.lastDonation || donor.lastDonationDate || 'First-time Donor',
-    email: donor.email || `${(donor.fullName || donor.name || 'donor').toLowerCase().replace(/\s+/g, '.')}@example.com`,
-    phone: donor.phone || '9876543210'
+    lastDonation: donor.lastDonation || donor.lastDonationDate || 'First-time Donor'
   };
 };
 
 export const DonorProvider = ({ children }) => {
-  // 1. Donors State with localStorage persistence
+  // 1. Backend API URL state (persisted in localStorage)
+  const [backendUrl, setBackendUrlState] = useState(() => {
+    return localStorage.getItem('hemopulse_backend_url') || '';
+  });
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  // 2. Donors State with localStorage persistence
   const [donors, setDonors] = useState(() => {
     try {
       const saved = localStorage.getItem('hemopulse_donors');
@@ -43,12 +55,12 @@ export const DonorProvider = ({ children }) => {
     return initialDonors.map(normalizeDonor);
   });
 
-  // 2. Active Donor for the Official ID Card preview
+  // 3. Active Donor for the Official ID Card preview
   const [activeDonor, setActiveDonor] = useState(() => {
     return donors.length > 0 ? donors[0] : null;
   });
 
-  // 3. Emergency Hospital Requirements State
+  // 4. Emergency Hospital Requirements State
   const [emergencyRequests, setEmergencyRequests] = useState(() => {
     try {
       const saved = localStorage.getItem('hemopulse_emergency_reqs');
@@ -62,7 +74,7 @@ export const DonorProvider = ({ children }) => {
     return initialEmergencyRequirements;
   });
 
-  // 4. Contacted Donors State (IDs of donors who received dispatch requests)
+  // 5. Contacted Donors State (IDs of donors who received dispatch requests)
   const [contactedDonors, setContactedDonors] = useState(() => {
     try {
       const saved = localStorage.getItem('hemopulse_contacted');
@@ -73,8 +85,17 @@ export const DonorProvider = ({ children }) => {
     return [];
   });
 
-  // 5. Toast Notification State
+  // 6. Toast Notification State
   const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'info') => {
+    const id = Date.now();
+    setToast({ message, type, id });
+  };
+
+  const clearToast = () => {
+    setToast(null);
+  };
 
   // Sync Donors with localStorage
   useEffect(() => {
@@ -103,17 +124,63 @@ export const DonorProvider = ({ children }) => {
     }
   }, [contactedDonors]);
 
-  // Trigger Toast Notification
-  const showToast = (message, type = 'info') => {
-    const id = Date.now();
-    setToast({ message, type, id });
+  // Set Backend URL helper
+  const setBackendUrl = (url) => {
+    const cleanUrl = url ? url.trim().replace(/\/+$/, '') : '';
+    setBackendUrlState(cleanUrl);
+    if (cleanUrl) {
+      localStorage.setItem('hemopulse_backend_url', cleanUrl);
+    } else {
+      localStorage.removeItem('hemopulse_backend_url');
+    }
   };
 
-  const clearToast = () => {
-    setToast(null);
-  };
+  // Fetch / Sync with Render Backend
+  const syncWithBackend = useCallback(async (urlToTest) => {
+    const targetUrl = urlToTest || backendUrl;
+    if (!targetUrl) return false;
 
-  // Automatically dismiss toast after 4 seconds
+    setIsConnecting(true);
+    try {
+      const cleanUrl = targetUrl.replace(/\/+$/, '');
+      const response = await fetch(`${cleanUrl}/api/donors`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server responded with HTTP ${response.status}`);
+      }
+
+      const backendData = await response.json();
+      if (Array.isArray(backendData)) {
+        const normalized = backendData.map(normalizeDonor);
+        setDonors(normalized);
+        if (normalized.length > 0) {
+          setActiveDonor(normalized[0]);
+        }
+        setBackendUrl(cleanUrl);
+        showToast(`Connected to backend! Loaded ${normalized.length} donors live.`, 'success');
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Backend connection failed:', err);
+      showToast(`Could not connect to ${targetUrl}: ${err.message}`, 'critical');
+      return false;
+    } finally {
+      setIsConnecting(false);
+    }
+  }, [backendUrl]);
+
+  // Automatically sync on startup if backendUrl is saved
+  useEffect(() => {
+    if (backendUrl) {
+      syncWithBackend(backendUrl);
+    }
+  }, []);
+
+  // Dismiss toast after 4s
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => {
@@ -122,8 +189,8 @@ export const DonorProvider = ({ children }) => {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  // Add Donor (Controlled Form submission from Exp 4)
-  const addDonor = (formData) => {
+  // Add Donor (Controlled Form submission from Exp 4 + Backend Sync)
+  const addDonor = async (formData) => {
     const nextNumber = donors.length + 1;
     const newId = formData.id || `DONOR-${String(nextNumber).padStart(3, '0')}`;
 
@@ -140,15 +207,51 @@ export const DonorProvider = ({ children }) => {
       availability: formData.availability === 'Available' || formData.availability === true
     });
 
-    // Immutability: array spread
+    // Update locally immediately
     setDonors((prev) => [newDonor, ...prev]);
     setActiveDonor(newDonor);
-    showToast(`Donor "${newDonor.fullName}" (${newDonor.bloodGroup}) registered successfully! ID: ${newDonor.id}`, 'success');
+    showToast(`Donor "${newDonor.fullName}" (${newDonor.bloodGroup}) registered successfully!`, 'success');
+
+    // If connected to Render backend, send POST request
+    if (backendUrl) {
+      try {
+        const backendPayload = {
+          fullName: newDonor.fullName,
+          bloodGroup: newDonor.bloodGroup,
+          phoneNumber: newDonor.phone,
+          email: newDonor.email,
+          city: newDonor.city,
+          lastDonationDate: newDonor.lastDonationDate,
+          age: newDonor.age,
+          availability: newDonor.availability,
+          donations: newDonor.donations,
+          rating: newDonor.rating
+        };
+
+        const res = await fetch(`${backendUrl}/api/donors`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(backendPayload)
+        });
+
+        if (res.ok) {
+          const savedFromBackend = await res.json();
+          setDonors((prev) =>
+            prev.map((d) => (d.id === newDonor.id ? normalizeDonor({ ...d, ...savedFromBackend, rawId: savedFromBackend.id }) : d))
+          );
+        }
+      } catch (e) {
+        console.warn('Failed to sync new donor to backend:', e);
+      }
+    }
+
     return newDonor;
   };
 
   // Toggle Donor Availability
-  const toggleDonorAvailability = (donorId) => {
+  const toggleDonorAvailability = async (donorId) => {
+    let updatedTarget = null;
+
     setDonors((prev) =>
       prev.map((d) => {
         if (d.id === donorId) {
@@ -157,6 +260,7 @@ export const DonorProvider = ({ children }) => {
             availability: !d.availability,
             availabilityStatus: !d.availability ? 'Available' : 'Currently Unavailable'
           };
+          updatedTarget = updated;
           if (activeDonor && activeDonor.id === donorId) {
             setActiveDonor(updated);
           }
@@ -166,10 +270,26 @@ export const DonorProvider = ({ children }) => {
         return d;
       })
     );
+
+    // If connected to Render backend, send PATCH
+    if (backendUrl && updatedTarget) {
+      try {
+        const numericId = updatedTarget.rawId || String(donorId).replace(/\D/g, '');
+        if (numericId) {
+          await fetch(`${backendUrl}/api/donors/${numericId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ availability: updatedTarget.availability })
+          });
+        }
+      } catch (e) {
+        console.warn('Backend patch failed:', e);
+      }
+    }
   };
 
   // Delete Donor
-  const deleteDonor = (donorId) => {
+  const deleteDonor = async (donorId) => {
     const target = donors.find((d) => d.id === donorId);
     setDonors((prev) => prev.filter((d) => d.id !== donorId));
     if (activeDonor && activeDonor.id === donorId) {
@@ -177,6 +297,20 @@ export const DonorProvider = ({ children }) => {
       setActiveDonor(remaining.length > 0 ? remaining[0] : null);
     }
     showToast(`Donor record ${target?.fullName || donorId} removed from registry.`, 'warning');
+
+    // If connected to Render backend, send DELETE
+    if (backendUrl && target) {
+      try {
+        const numericId = target.rawId || String(donorId).replace(/\D/g, '');
+        if (numericId) {
+          await fetch(`${backendUrl}/api/donors/${numericId}`, {
+            method: 'DELETE'
+          });
+        }
+      } catch (e) {
+        console.warn('Backend delete failed:', e);
+      }
+    }
   };
 
   // Dispatch Emergency Request to Donor (from Exp 3)
@@ -193,7 +327,7 @@ export const DonorProvider = ({ children }) => {
     }
   };
 
-  // Add New Emergency Hospital Requirement (New Feature)
+  // Add New Emergency Hospital Requirement
   const addEmergencyRequest = (req) => {
     const newReq = {
       id: `EMERG-${String(emergencyRequests.length + 1).padStart(3, '0')}`,
@@ -249,6 +383,10 @@ export const DonorProvider = ({ children }) => {
         addEmergencyRequest,
         deleteEmergencyRequest,
         resetToDemoData,
+        backendUrl,
+        setBackendUrl,
+        syncWithBackend,
+        isConnecting,
         totalCount,
         availableCount,
         uniqueBloodGroups,
@@ -261,7 +399,6 @@ export const DonorProvider = ({ children }) => {
   );
 };
 
-// Custom Hook for direct consumption
 export const useDonorContext = () => {
   const context = useContext(DonorContext);
   if (!context) {

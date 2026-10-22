@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useDonorContext } from '../context/DonorContext';
+import ConnectBackendModal from './ConnectBackendModal';
 
 /**
  * Header Component (Unified from Experiment 3 & 4)
@@ -8,6 +9,7 @@ import { useDonorContext } from '../context/DonorContext';
  * - Consuming Global Context (stats & user info)
  * - Navigation tab bar for multiple views
  * - Dynamic pulse animations & badges
+ * - Render Backend API synchronization trigger
  */
 function Header({ currentTab, setCurrentTab }) {
   const {
@@ -16,8 +18,11 @@ function Header({ currentTab, setCurrentTab }) {
     totalCount,
     bloodGroupsCount,
     contactedCount,
-    resetToDemoData
+    resetToDemoData,
+    backendUrl
   } = useDonorContext();
+
+  const [isBackendModalOpen, setIsBackendModalOpen] = useState(false);
 
   return (
     <header className="header">
@@ -56,15 +61,26 @@ function Header({ currentTab, setCurrentTab }) {
           )}
         </div>
 
-        {/* User / Coordinator Profile */}
+        {/* User / Coordinator Profile & API Controls */}
         <div className="header-user-profile">
           <div className="user-avatar" title={user?.role || 'Emergency Coordinator'}>
             {user?.name ? (user.name.replace(/^Dr\.\s*/i, '').charAt(0) || user.name.charAt(0)) : 'H'}
           </div>
           <div className="user-info">
-            <p className="user-name">{user?.name || 'HemoPulse Coordinator'}</p>
+            <p className="user-name">{user?.name || 'Dr. Harshad Potdar'}</p>
             <span className="user-role">{user?.role || 'Emergency Coordinator'}</span>
           </div>
+
+          {/* Backend Status / Connect Button */}
+          <button
+            type="button"
+            className={`btn-backend-status ${backendUrl ? 'status-connected' : 'status-disconnected'}`}
+            onClick={() => setIsBackendModalOpen(true)}
+            title={backendUrl ? `Connected to ${backendUrl}` : 'Click to connect your deployed Render backend'}
+          >
+            {backendUrl ? '🟢 Backend Online' : '🔗 Connect Backend'}
+          </button>
+
           <button
             type="button"
             className="btn-demo-reset"
@@ -127,6 +143,12 @@ function Header({ currentTab, setCurrentTab }) {
           <span className="tab-text">All-in-One Dashboard</span>
         </button>
       </nav>
+
+      {/* Modal to connect Render Backend URL */}
+      <ConnectBackendModal
+        isOpen={isBackendModalOpen}
+        onClose={() => setIsBackendModalOpen(false)}
+      />
     </header>
   );
 }

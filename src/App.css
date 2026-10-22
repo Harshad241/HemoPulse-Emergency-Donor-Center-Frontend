@@ -258,6 +258,39 @@
   color: #1e293b;
 }
 
+.btn-backend-status {
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.status-disconnected {
+  background-color: #eff6ff;
+  border: 1.5px solid #3b82f6;
+  color: #1d4ed8;
+}
+
+.status-disconnected:hover {
+  background-color: #dbeafe;
+}
+
+.status-connected {
+  background-color: #f0fdf4;
+  border: 1.5px solid #22c55e;
+  color: #15803d;
+}
+
+.status-connected:hover {
+  background-color: #dcfce7;
+}
+
 /* Nav Tabs */
 .header-nav-tabs {
   display: flex;
