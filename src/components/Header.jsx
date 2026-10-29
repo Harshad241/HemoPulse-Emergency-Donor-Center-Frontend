@@ -111,7 +111,6 @@ function Header({ currentTab, setCurrentTab }) {
         >
           <span className="tab-icon">📝</span>
           <span className="tab-text">Register Donor &amp; ID Card</span>
-          <span className="tab-badge-accent">Exp 4</span>
         </button>
 
         <button
